@@ -1,0 +1,305 @@
+Ingesting the Real time or Near real time data into HDFS using Flume
+
+Flume Documentation
+http://archive-primary.cloudera.com/cdh5/cdh/5/flume-ng-1.5.0-cdh5.3.2/
+
+Developer guide and Javadocs are for flume development for the open source to make custom changes to flume
+
+HDFS cluser with many nodes
+There can be multiple sources 
+Main frames , data bases, Open systems
+And the flume agent consists of Source, Channel, Sink
+
+There are multiple Architectures available to config the flume
+
+Flume is used to pull the data from the open systems via web logs and integrate into HDFS
+On the source system, you need to have a flume agent which can 
+•	pull the web logs( it should know where the web logs are) 
+•	then it will channel the data which is collected on the source by the agent to the agent on the target system ( one agent on the open system and one agent at the gateway node of hadoop cluster )
+•	The gateway node on the hadoop cluster has all the hadoop binaries and paramter files pointing to a particular hadoop cluster.
+•	An agent will be running on the gateway node which knows where the hdfs cluster is and that will load data into HDFS
+
+A flume agent can be running on a source system, on a separate server, on a gateway node. There can be multiple flume agents in between to get the data from the source to the hdfs
+Flume Home directory
+⇨	/usr/lib/flume-ng
+Flume –ng version
+⇨	Gives the version of the flume configured
+Cd /opt/examples/
+Ls –ltr
+⇨	You will find the examples 
+⇨	Log_files , flume
+Cd flume
+Ls –ltr
+⇨	Morphlines is the tool used to generate the test data simulating the web logs
+⇨	Solr_configs, morphlines, conf
+Cd conf
+Ls –ltr
+⇨	Conf is a directory where you find how the flume agent is configured
+⇨	Flume-env.sh, flume.conf, morphline.conf
+Flume.conf
+⇨	You can find the agentname
+
+
+SETUP TELNET
+
+We will start a webserver using flume ng command
+We can generate some test data using telnet command
+That data will be integrated with flume and we will see the data in the logout
+
+Telnet may not be available with most of the systems
+To check if the system has telnet type telnet and check it
+If there isn’t any telnet available, you need to download it using yum command
+Yum is a cent OS os Redhat or fedora based installer. It will download the nessasary software from the public repositories of your OS and try to install on the VM
+If your system is ubuntu you need ot use app2 – get ( installer command)
+
+You need to have root permissions to install the telnet
+Sudo yum –y install telnet
+
+Telnet helps us to validate software server program is running on a target host on a particular port.
+Any server process, runs on a port. Therefore you need to give the ip address and the port number on which the software service is running. 
+
+telnet localhost
+localhost is a local IP which is a alias for the loopback IP
+
+ping localhost
+ping quickstart.cloudera	alias hostname for the localhost
+ifconfig -a	to know the ip address of the vm. Any linux or unix based service can run this command
+ping 192.168.19.129	ensure that you can communicate with the host
+telnet IP addr (or) alias to IP and portnum	to see if we can communicate with the service that is running on host 
+		eg: SSH
+ps –ef	linux command to check the services running on the machine
+ps –ef|grep ssh	ssh runs on a prt number 22 ( we can customize but not recommended)
+telnet 192.168.19.129 22	If telnet is working to a software application running on a remote host
+
+We use telnet to telnet to the webserver that will be running when we launch it using flume –ng command
+
+EXERCISE 1
+
+Hdfs is going to be Sink
+Source and channel it can have different ways of doing it. You can stream multiple sources.
+-n or --name
+-c or --conf
+-f or --conf-file
+flume-ng agent --name a1 --conf /home/cloudera/Desktop/flume/conf --conf-file /home/cloudera/Desktop/flume/conf/example.conf 
+
+To Start a flume job
+flume-ng agent -n $agent_name -c conf -f conf/flume-conf.properties.template
+
+Configuring the job
+# example.conf: A single-node Flume configuration
+
+# Name the components on this agent
+a1.sources = r1
+a1.sinks = k1
+a1.channels = c1
+
+# Describe/configure the source
+a1.sources.r1.type = netcat
+a1.sources.r1.bind = localhost
+a1.sources.r1.port = 44444
+
+# Describe the sink
+a1.sinks.k1.type = logger
+
+# Use a channel which buffers events in memory
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 1000
+a1.channels.c1.transactionCapacity = 100
+
+# Bind the source and sink to the channel
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+
+for each source,sink and channel we have type. 
+Source type telnet	type some data and that data is processed by flme in real time
+Sink type logger  	it doesn’t save anywhere. It starts a web server and logs everytng in the webserver.
+Channel  memory	Memory is one type
+
+⇨	There are different types for source,sink and channel.
+⇨	Agent_name.Component_of_agent.Name_of_agent.parameter_name
+⇨	Finally you bind the channel to both Source and Sink
+
+flume-ng agent \ 
+ --name a1 \
+ --conf /home/cloudera/govind/flume/conf \
+ --conf-file /home/cloudera/govind/flume/conf/example.conf
+-	This will launch a server socket running on the port 44444 which has been set up
+
+Once it starts, try to host the telnet
+telnet localhost 44444
+-	Then the information you give in Telnet, will be processed by Flume Agent. With the flume source, it will be passed on to the channel and then it is passed to sink ( logger) and then it displays the information in the server socket
+
+This flume job used Netstat for source, Memory for channel and logger for sink
+If this job doesn’t display the whole text, the parameters in the conf file needs to be changed.
+
+EXERCISE 2
+Performing the netstat and storing the instance and its data into HDFS
+
+Changes in the conf file
+# Describe the sink
+a1.sinks.k1.type = logger
+
+# Customizing the sink for hdfs
+a1.sinks.k1.hdfs.path = hdfs://quickstart.cloudera:8020/user/cloudera/flume
+a1.sinks.k1.hdfs.filePrefix = netcat
+a1.sinks.k1.hdfs.fileType = DataStream
+a1.sinks.k1.hdfs.rollInterval = 120
+
+Flume job for HDFS sink
+flume-ng agent -n a1 -c /home/cloudera/govind/flume/conf -f /home/cloudera/govind/flume/conf/hdfssink.conf
+
+HDFS stores the file in sequence file format by default. You can also change it to DataStream or CompressedStream
+
+hdfs dfs -ls /user/cloudera/flume/
+netcat.1462225519734
+
+NOTE: If the file is in sequence file, you can not read it. DataStream is readable
+
+Performing some real time examples
+
+The following are the escape sequences supported:
+Alias	Description
+%{host}	Substitute value of event header named “host”. Arbitrary header names are supported.
+%t	Unix time in milliseconds
+%a	locale’s short weekday name (Mon, Tue, ...)
+%A	locale’s full weekday name (Monday, Tuesday, ...)
+%b	locale’s short month name (Jan, Feb, ...)
+%B	locale’s long month name (January, February, ...)
+%c	locale’s date and time (Thu Mar 3 23:05:25 2005)
+%d	day of month (01)
+%D	date; same as %m/%d/%y
+%H	hour (00..23)
+%I	hour (01..12)
+%j	day of year (001..366)
+%k	hour ( 0..23)
+%m	month (01..12)
+%M	minute (00..59)
+%p	locale’s equivalent of am or pm
+%s	seconds since 1970-01-01 00:00:00 UTC
+%S	second (00..59)
+%y	last two digits of year (00..99)
+%Y	year (2010)
+%z	+hhmm numeric timezone (for example, -0400)
+
+cd /opt/examples/flume/
+solr_configs
+morphlines
+conf
+
+cd conf
+flume-env.sh	Has memory related setings
+flume.conf	
+morphlines.conf
+
+flume.conf has exec as Source, FILE as channel and solr as sink
+-	Whatever is written, it is buffered into a log before dumping into a sink
+-	With Exec source type, you can run linux or unix commands and we can get the results to be streamed throug Flume into the channel and the sink
+
+Describe/configure source1
+agent1.sources.source1.type = exec
+agent1.sources.source1.command = tail -F /opt/gen_logs/logs/access.log
+
+tail is a unix command which is last 10 lines
+-f refresh the last 10 lines as soon as the new entries are made to the file
+/opt/gen_logs/logs/access.log 	target for a simulator provided by cloudera VM
+
+By running this tail -F /opt/gen_logs/logs/access.log you can see the current log entries
+You can also do start_logs and stop_logs to see the live updates to the log 
+
+EXERCISE 1
+
+Lets configure the conf file for the flume job
+
+# example.conf: A single-node Flume configuration
+
+# Name the components on this agent
+a1.sources = r1
+a1.sinks = k1
+a1.channels = c1
+
+# Describe/configure the source
+a1.sources.r1.type = exec
+a1.sources.r1.command = tail -F /opt/gen_logs/logs/access.log
+a1,sources.r1.channels = c1
+
+
+# Use a channel which buffers events to a file
+a1.channels.c1.type = FILE
+
+# The maximum size of transaction supported by the channel
+a1.channels.c1.capacity = 20000
+a1.channels.c1.transactionCapacity = 1000
+
+#Amount of time (in millis) between checkpoints
+A1.channels.c1.checkpointInterval 300000
+
+# Describe the sink
+a1.sinks.k1.type = hdfs
+
+# Customizing the sink for hdfs
+a1.sinks.k1.channel = c1
+a1.sinks.k1.hdfs.path = hdfs://quickstart.cloudera:8020/user/cloudera/flume/%y-%m-%d
+a1.sinks.k1.hdfs.filePrefix = flume-%y-%m-%d
+a1.sinks.k1.hdfs.rollSize = 1048576
+a1.sinks.k1.hdfs.rollCount = 100
+a1.sinks.k1.hdfs.rollInterval = 120
+a1.sinks.k1.hdfs.fileType = DataStream
+a1.sinks.k1.hdfs.idleTimeout = 10
+a1.sinks.k1.hdfs.useLocalTimeStamp = true
+
+# Bind the source and sink to the channel
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+
+Running the flume Job
+flume-ng agent -n a1 -c /home/cloudera/govind/flume/conf -f /home/cloudera/govind/flume/conf/timestamp.conf
+
+Try to start logs now
+start_logs
+Check for the Flume’s HDFS entry
+hdfs dfs –ls /user/cloudera/flume/16-02-01/
+
+
+
+sudo cp flume-sources-1.0-SNAPSHOT.jar /usr/lib/flume-ng/lib
+
+# example.conf: A single-node Flume configuration
+
+# Name the components on this agent
+a1.sources = r1
+a1.sinks = k1
+a1.channels = c1
+
+# Describe/configure the source
+a1.sources.r1.type = exec
+a1.sources.r1.command = tail -F /opt/gen_logs/logs/access.log
+a1,sources.r1.channels = c1
+
+
+# Use a channel which buffers events to a file
+a1.channels.c1.type = FILE
+
+# The maximum size of transaction supported by the channel
+a1.channels.c1.capacity = 20000
+a1.channels.c1.transactionCapacity = 1000
+
+#Amount of time (in millis) between checkpoints
+A1.channels.c1.checkpointInterval 300000
+
+# Describe the sink
+a1.sinks.k1.type = hdfs
+
+# Customizing the sink for hdfs
+a1.sinks.k1.channel = c1
+a1.sinks.k1.hdfs.path = hdfs://quickstart.cloudera:8020/user/cloudera/flume/%y-%m-%d
+a1.sinks.k1.hdfs.filePrefix = flume-%y-%m-%d
+a1.sinks.k1.hdfs.rollSize = 1048576
+a1.sinks.k1.hdfs.rollCount = 100
+a1.sinks.k1.hdfs.rollInterval = 120
+a1.sinks.k1.hdfs.fileType = DataStream
+a1.sinks.k1.hdfs.idleTimeout = 10
+a1.sinks.k1.hdfs.useLocalTimeStamp = true
+
+# Bind the source and sink to the channel
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
